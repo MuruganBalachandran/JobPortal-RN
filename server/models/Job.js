@@ -128,8 +128,20 @@ const jobSchema = new mongoose.Schema({
 
 // Virtual for formatted salary
 jobSchema.virtual('formattedSalary').get(function() {
-  const { min, max, currency, period } = this.salary;
-  return `${currency} ${min.toLocaleString()} - ${max.toLocaleString()} per ${period}`;
+  const salary = this.salary || {};
+  const { min, max, currency = 'USD', period = 'yearly' } = salary;
+  
+  // Handle cases where min or max might be undefined
+  if (typeof min !== 'number' || typeof max !== 'number') {
+    return 'Salary not specified';
+  }
+  
+  try {
+    return `${currency} ${min.toLocaleString()} - ${max.toLocaleString()} per ${period}`;
+  } catch (error) {
+    console.error('Error formatting salary:', error);
+    return 'Salary not specified';
+  }
 });
 
 // Virtual for time since posting

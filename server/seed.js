@@ -1,6 +1,7 @@
 require('dotenv').config({ path: './config.env' });
 const mongoose = require('mongoose');
 const seedUsers = require('./utils/seedData');
+const seedCorrelatedData = require('./utils/correlatedSeedData');
 
 // Ensure we have the MongoDB URI
 const MONGO_URI = process.env.MONGODB_URI;
@@ -13,8 +14,9 @@ mongoose.connect(MONGO_URI)
     .then(async () => {
         console.log('MongoDB Connected...');
         try {
-            await seedUsers();
-            console.log('Seeding completed successfully');
+            // Only seed correlated data since users already exist
+            await seedCorrelatedData();
+            console.log('Correlated data seeding completed successfully');
         } catch (error) {
             console.error('Seeding error:', error);
         } finally {

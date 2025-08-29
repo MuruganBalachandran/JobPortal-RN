@@ -6,6 +6,76 @@ const User = require('../models/User');
 const { protect, authorizeBoth } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 
+// @desc    Get recruiter statistics by recruiterId
+// @route   GET /api/stats/recruiter?recruiterId=xxx
+// @access  Private
+const getRecruiterStatsById = asyncHandler(async (req, res) => {
+  const recruiterId = req.query.recruiterId;
+  if (!recruiterId) {
+    return res.status(400).json({ success: false, message: 'Missing recruiterId' });
+  }
+  const user = await User.findById(recruiterId);
+  if (!user || user.userType !== 'recruiter') {
+    return res.status(404).json({ success: false, message: 'Recruiter not found' });
+  }
+  const [
+    totalJobs,
+    activeJobs,
+    totalApplications,
+    pendingApplications,
+    shortlistedApplications,
+    interviewedApplications,
+    acceptedApplications,
+    rejectedApplications
+  ] = await Promise.all([
+    Job.countDocuments({ recruiter: recruiterId }),
+    Job.countDocuments({ recruiter: recruiterId, status: 'active' }),
+    Application.countDocuments({ job: { $in: await Job.find({ recruiter: recruiterId }).select('_id') } }),
+    Application.countDocuments({ job: { $in: await Job.find({ recruiter: recruiterId }).select('_id') }, status: 'pending' }),
+    Application.countDocuments({ job: { $in: await Job.find({ recruiter: recruiterId }).select('_id') }, status: 'shortlisted' }),
+    Application.countDocuments({ job: { $in: await Job.find({ recruiter: recruiterId }).select('_id') }, status: 'interviewed' }),
+    Application.countDocuments({ job: { $in: await Job.find({ recruiter: recruiterId }).select('_id') }, status: 'accepted' }),
+    Application.countDocuments({ job: { $in: await Job.find({ recruiter: recruiterId }).select('_id') }, status: 'rejected' })
+  ]);
+
+  // Get recent jobs with proper error handling for salary formatting
+  const recentJobs = await Job.find({ recruiter: recruiterId })
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .lean() // Convert to plain JS object
+    .exec();  // Ensure proper execution of query
+
+  const recruiterJobs = await Job.find({ recruiter: recruiterId }).select('_id');
+  const recentApplications = await Application.find({ job: { $in: recruiterJobs.map(job => job._id) } })
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .populate('job', 'title company')
+    .populate('applicant', 'fullName email');
+
+  const successRate = totalApplications > 0 
+    ? parseFloat(((acceptedApplications / totalApplications) * 100).toFixed(1))
+    : 0;
+
+  res.json({
+    success: true,
+    data: {
+      overview: {
+        totalJobs,
+        activeJobs,
+        totalApplications,
+        pendingApplications,
+        shortlistedApplications,
+        interviewedApplications,
+        acceptedApplications,
+        rejectedApplications,
+        successRate: parseFloat(successRate)
+      },
+      recentJobs,
+      recentApplications
+    }
+  });
+});
+
 // @desc    Get overall platform statistics
 // @route   GET /api/stats/platform
 // @access  Public
@@ -333,6 +403,7 @@ const getMonthlyJobTrends = asyncHandler(async (req, res) => {
 // Apply routes
 router.get('/platform', getPlatformStats);
 router.get('/dashboard', protect, getDashboardStats);
+router.get('/recruiter', getRecruiterStatsById);
 router.get('/jobs/by-type', getJobStatsByType);
 router.get('/jobs/by-location', getJobStatsByLocation);
 router.get('/jobs/by-experience', getJobStatsByExperience);

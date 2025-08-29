@@ -18,6 +18,7 @@ const getJobs = asyncHandler(async (req, res) => {
     minSalary,
     maxSalary,
     tags,
+    recruiter,
     page = 1,
     limit = 10,
     sort = 'createdAt',
@@ -28,40 +29,34 @@ const getJobs = asyncHandler(async (req, res) => {
 
   // Build filters
   const filters = {};
-  
   if (search) {
     filters.$text = { $search: search };
   }
-  
   if (location) {
     filters.location = { $regex: location, $options: 'i' };
   }
-  
   if (type) {
     filters.type = type;
   }
-  
   if (remote !== undefined) {
     filters.remote = remote === 'true';
   }
-  
   if (experience) {
     filters.experience = experience;
   }
-  
   if (minSalary) {
     filters['salary.max'] = { $gte: parseInt(minSalary) };
   }
-  
   if (maxSalary) {
     filters['salary.min'] = { $lte: parseInt(maxSalary) };
   }
-  
   if (tags) {
     const tagArray = tags.split(',').map(tag => tag.trim().toLowerCase());
     filters.tags = { $in: tagArray };
   }
-
+  if (recruiter) {
+    filters.recruiter = recruiter;
+  }
   // Only show active jobs
   filters.status = 'active';
 
